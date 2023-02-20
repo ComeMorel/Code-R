@@ -1,0 +1,1137 @@
+---
+title: "PROCEDURE POUR ANALYSER LES DONNEES DU VIROME EN SORTIE DU PIPELINE"
+author: Group Arbovirus & Virome
+date: "17/02/2023"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 4
+    toc_float: true
+    number_sections: false
+    highlight: tango
+    df_print: paged
+  pdf_document:
+    toc: true
+    toc_depth: 4
+    number_sections: false
+    highlight: tango
+    df_print: kable
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# Avant de commencer
+
+*Pages web de référence pour Rmarkdown (pour aller plus loin) :*
+
+<https://juba.github.io/tidyverse/13-rmarkdown.html>
+
+<https://bookdown.org/yihui/rmarkdown/documents.html>
+
+<https://stt4230.rbind.io/communication_resultats/redaction_r_markdown/#r-markdown>
+
+<https://delladata.fr/guide-de-demarrage-en-r-markdown/>
+
+# 0- Load libraries
+
+*Librairies nécessaires pour l'utilisation de ce script R : à télécharger*
+```{r, warning=FALSE, message=FALSE}
+# Pour lire les fichiers csv
+library("readr")
+# Pour manipuler les données (accompagnée automatiquement par les packages dplyr et tidyr)
+library("tidyverse")
+library("dplyr")
+library("tidyr")
+# Pour quasiment toutes les figures
+library("ggplot2")
+# Pour lire fichiers excel
+library("readxl")
+# Autre package pour manipuler les données
+library("gdata")
+# Test statistiques donc test de wilcoxon (fonction "wsrTest")
+library("asht")
+# Heatmaps "superheat" 
+library("superheat")
+# Heatmaps "ComplexHeatmap"
+library("ComplexHeatmap")
+# Thèmes typographiques spécifiques pour ggplot (fonction "theme_ipsum")
+library("hrbrthemes")
+# Pour intégrer tests stats directement dans ggplot
+library("ggsignif")
+# Fonction "glue" 
+library("glue")
+# Diagramme de Venn
+library("ggvenn")
+# Fonction "PieDonut"
+require("moonBook") 
+# Fonction "PieDonut"
+require("webr") 
+# Tavailler avec des graphiques en grille
+library("gridExtra")
+# Fonction "melt"
+library("reshape2")
+# Visualisation graphique des données
+library("patchwork")
+# Visualisation graphiques en 3D
+library("rgl")
+```
+
+# 1- Récapitulatif des filtres appliqués sur les reads bruts lors de l’analyse bio_info
+
+Les reads **undetermined** sont utilisés pour l’étape de co-assemblage puis éliminés, ils ne sont pas pris en compte dans les comptages car non attribués à un échantillon.
+
+* `duplicats`
+
+* `filt_ctrl` = soustraction des reads du contrôle le plus chargé pour chaque OTU
+
+* `filt_10X` = filtre minimum 10 reads par échantillons (< 10 reads par OTU = 0) 
+
+* `filt_100X` = minimum 100 reads par OTU
+
+* `filt_USP` = élimination des reads bactériens/bactériophage/champignons et virus non désirés (exPPR)
+
+* `clustering` = permet de résoudre les multiassignations : groupage des `TaxID` par les 5 meilleurs besthit (on garde 5 sorties pour chaque contig)
+
+```{r, fig.width=10, fig.height=6}
+Table_data <- read_excel("Projet P1 SENEGAL - Sympathôtes/Redaction/Tableau_prelim/Table_data.xlsx") 
+Table_data <- as.data.frame(Table_data)
+rownames(Table_data) <- Table_data$Object
+Table_data <- Table_data[,-c(1:3)]
+Table_data <- as.data.frame(t(Table_data))
+Table_data$Filter <- rownames(Table_data)
+
+# Basic Barplot : reads number 
+my_bar <- barplot(Table_data$reads_number, border=F , names.arg=Table_data$Filter, 
+                  las=1 , 
+                  col=c(rgb(0.3,0.1,0.4,0.6) , rgb(0.3,0.5,0.4,0.6) , rgb(0.3,0.9,0.4,0.6) ,  rgb(0.8,0.7,0.4), rgb(0.8,0.7,1)) , 
+                  ylim=c(0,700000) , 
+                  main="Impact of filters on reads number -28594 reads -4.4%", 
+                  ylab = "reads", xlab="Filter") 
+
+# Add the text 
+text(my_bar, Table_data$reads_number+15000 , paste("n: ", Table_data$reads_number, sep="") ,cex=1)
+
+# Basic Barplot : contigs
+my_bar_contigs <- barplot(Table_data$contigs_number, border=F , names.arg=Table_data$Filter, 
+                          las=1 , 
+                          col=c(rgb(0.3,0.1,0.4,0.6) , rgb(0.3,0.5,0.4,0.6) , rgb(0.3,0.9,0.4,0.6) ,  rgb(0.8,0.7,0.4), rgb(0.8,0.7,1)) , 
+                          ylim=c(0,620) , 
+                          main="Impact of filters on contigs number -329 contigs -57.5%",
+                          ylab = "contigs", xlab="Filter")
+
+# Add the text 
+text(my_bar_contigs, Table_data$contigs_number+10 , paste("n: ", Table_data$contigs_number, sep="") ,cex=1)
+
+# Basic Barplot : vOTUs
+my_bar_otu <- barplot(Table_data$otu_number, border=F , names.arg=Table_data$Filter, 
+                      las=1 , 
+                      col=c(rgb(0.3,0.1,0.4,0.6) , rgb(0.3,0.5,0.4,0.6) , rgb(0.3,0.9,0.4,0.6) ,  rgb(0.8,0.7,0.4), rgb(0.8,0.7,1)) , 
+                      ylim=c(0,270) , 
+                      main="Impact of filters on vOTUs number -154 vOTUs -61.4%",
+                      ylab = "vOTUs", xlab="Filter" )
+
+# Add the text 
+text(my_bar_otu, Table_data$otu_number+5 , paste("n: ", Table_data$otu_number, sep="") ,cex=1)
+```
+**En sortie du pipe on a 6 fichiers :**
+
+1. `Stat_by seqid` = contigs et seqid pour chaque librairie et le nombre de reads
+
+2. `seq_hits_info` = stat de chaque contig
+
+3. `Tax_table` = taxonomie virale
+
+4. `count_table` = nombre de reads/ librairie (faire le tableau présence/absence)
+
+5. `OTU_stat` = stat pour chaque Magroupe
+
+6. `Viral_contigs` = fichier fasta des reads des contigs 
+
+Il faut ajouter le fichier `Metadata`, (fichier qui regroupe toutes les infos de chaque librairie) 
+
+Il faut garder le  `count_table` avant filtre (données brutes)
+
+# 2- Analyses du séquençage
+## 2-1 :  Analyses des statistiques générales / statistiques descriptives
+
+Design expérimental, nombre de librairies + les contrôles et undetermined pour les jeux de données les possédant (pas visible dans le jeux de données Sénégal présenté)
+
+Analyse du run selon le tableau stats : exemple ci-dessous (*data Sénégal*)
+
+```{r, message=FALSE}
+read_csv("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/stats_run_SENEGAL.csv")
+```
+
+## 2-2 : Vérification de l’homogénéité des données (voir s’il y a des biais de manip, si beaucoup de plaques d’extraction)
+
+* Reads_totaux/echantillon
+
+*	Reads viraux/échantillon
+
+*	Reads en fonction des différentes variables
+
+*	Reads des contrôles et diversité virale ? 
+
+*	Analyse de la distribution des reads : Est-ce que les données suivent une loi normale ? `Shapiro test`
+
+```{r, message=FALSE}
+count_otu_Cx <- read_csv("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/otu_clean_fil10.csv")
+apply(count_otu_Cx[,-1], 2, shapiro.test) #p-value > 0.05 indique que la distribution des données n’est pas significativement différente de la distribution normale. En d’autres termes, nous pouvons supposer la normalité des données (ce qui n'est pas le cas ici).
+```
+La distribution normale des données est basée sur la moyenne et la variance.
+Si **distribution Normale** = **TESTS PARAMETRIQUES**, sinon **TESTS NON PARAMETRIQUES**
+(Pour les tests non paramétriques il n’y a pas d’hypothèse sur la distribution des observations des échantillons, ils se basent sur des rangs d’observation)
+
+Test Stat de `Kruskal-wallis` pour les données non paramétriques (avec n > 2).
+
+## 2-3 : Analyse de la Taxonomie
+
+**La taxonomie virale est basée selon la classification de l’ICTV**
+![Figure : Classification taxonomique ICTV](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/Classification_ICTV.png)
+
+L’assignation taxonomique des contigs se fait par BLAST sur les bases de données de 2021 mais il faut faire une correction « manuelle » en corrigeant le `NA` des colonnes `Phylum`, `Order`, `Nucleic_acid`, `Host` selon [Shi et al.](https://www.nature.com/articles/nature20167), [Koonin et al.](https://www.sciencedirect.com/science/article/pii/S0042682215000859) et l’[ICTV](https://ictv.global/taxonomy).
+
+Le rang `Cluster` est intermédiaire entre `Order` et `Family`.
+
+### 2-3-2 : Nettoyage des NA du fichier TAX_Table : remettre dans l'ordre
+
+*	Harmoniser la dénomination de la colonne `Host`. On retrouve souvent `Culicidae`/`Diptera`/`Insecta`/`Insecta_other`/`other diptera`. En fonction du nom de l’espèce on peut modifier et mettre `Culicidae` ou `Arthropod_other` ou `insecta_other` (`NA` restant = Arthropodes dans le jeu de données Sénégal : exemple de manip à faire)
+```{r, message=FALSE}
+taxo_table_Cx <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/taxo_table_Cx_propre.xlsx")
+taxo_table_Cx <- taxo_table_Cx[,-1]
+taxo_table_Cx[is.na(taxo_table_Cx$hosts_taxon), "hosts_taxon"] <- "Arthropoda_other"
+```
+
+*	Phylum `RNA` ou `DNA` corrigé par `cluster_phylum` s’il y a lieu 
+```{r}
+taxo_table_Cx[unique(grep("RNA", taxo_table_Cx$phylum)), colnames(taxo_table_Cx) %in% "phylum"] <- "cluster_phylum"
+taxo_table_Cx[unique(grep("DNA", taxo_table_Cx$phylum)), colnames(taxo_table_Cx) %in% "phylum"] <- "cluster_phylum"
+```
+*	Order `NA` corrigé par `cluster_order` s’il y a lieu 
+```{r}
+taxo_table_Cx[is.na(taxo_table_Cx$order), "order"] <- "cluster_order"
+```
+*	Cluster `Permutotetra_unclass` => `Permutotetra`
+```{r}
+taxo_table_Cx[unique(grep("Permutotetra_unclass", taxo_table_Cx$cluster)), colnames(taxo_table_Cx) %in% "cluster"] <- "Permutotetra"
+```
+*	Cluster `Luteo-Sobemo` => `Toli_unclass` 
+```{r}
+taxo_table_Cx[unique(grep("Luteo-Sobemo", taxo_table_Cx$cluster)), colnames(taxo_table_Cx) %in% "cluster"] <- "Toli_unclass"
+```
+*	Phylum `Luteo-Sobemo` => `Kitrinoviricota` 
+```{r}
+taxo_table_Cx[unique(grep("Luteo-Sobemo", taxo_table_Cx$phylum)), colnames(taxo_table_Cx) %in% "phylum"] <- "Kitriniviricota"
+```
+*	Order `Luteo-Sobemo` => `Tolivirales`
+```{r}
+taxo_table_Cx[unique(grep("Luteo-Sobemo", taxo_table_Cx$order)), colnames(taxo_table_Cx) %in% "order"] <- "Tolivirales"
+```
+
+Cette correction se fait par le `TaxID` en allant chercher les info sur le site du [NCBI](https://www.ncbi.nlm.nih.gov/).
+Si on ne trouve pas, regarder le blast des contigs et prendre la taxo de l’espèce la plus proche.
+
+### 2-3-2 : Elimination des OTUs
+
+*	Dans la colonne `Host`, on peut éliminer `Bacteria`/`Fungi`/`Viridiplantae`/`Vertebrates`
+
+*	Dans la colonne `Order`, on peut éliminer les `Caudovirales` et les `Levivirales` car virus de phages
+
+```{r, message=FALSE}
+count_otu_taxo_Cx <- merge(count_otu_Cx, taxo_table_Cx, by = "tax_id")
+count_otu_taxo_Cx <- count_otu_taxo_Cx %>% 
+  subset(Nucleic_acid != "ssRNA-RT") %>%
+  subset(hosts_taxon != "Fungi") %>%
+  subset(hosts_taxon != "Vertebrate") %>%
+  subset(hosts_taxon != "Viridiplantae") %>%
+  subset(hosts_taxon != "Bacteria") %>%
+  subset(order != "Caudovirales") %>%
+  subset(order != "Levivirales")
+```
+
+### 2-3-3 : Elimination des librairies outlayers
+
+*	Selon les questions de recherche on peut éliminer les OTUs qui sont dans moins de **5 librairies** (si plus de 100 librairies) -> pas besoin pour le Sénégal
+
+*	Elimination des librairies qui n’ont **aucun reads viraux**
+```{r, results='hide'}
+# Changer noms des échantillons
+count_otu_taxo_Cx <- rename.vars(count_otu_taxo_Cx, from = c("Sample_S-16-0138_6","Sample_S-16-0139_4","Sample_S-16-0140_9","Sample_S-16-0141_7","Sample_S-16-0142_5","Sample_S-16-0143_3","Sample_S-16-0144_1","Sample_S-16-0145_0","Sample_S-16-0146_8","Sample_S-16-0147_6","Sample_S-16-0148_4","Sample_S-16-0149_2"), to = c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5"))
+# name :  P = C.Poicilipes, T = C.tritaeniorhynchus, F = Ferlo - Ponds, D = Diama - Delta, K = KMS - Lake, 4 = 2014, 5 = 2015
+
+# Elimination librairies sans reads viraux
+count_otu_taxo_Cx$sum_reads <- rowSums(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")])
+count_otu_taxo_Cx <- count_otu_taxo_Cx %>% 
+  subset(sum_reads > 0) 
+```
+
+*	L’analyse des reads viraux en fonction du nombre d’OTU (fichier OTU présence/absence et faire la somme totale) par échantillons permet de fixer un seuil et d’éliminer les **librairies outlayers** quand assez de librairies. Analyser les **contrôles** (si présence de contrôles)
+```{r, fig.width=10, fig.height=6}
+rownames(count_otu_taxo_Cx) <- count_otu_taxo_Cx$species
+abund_OTU_transvers_Cx <- as.data.frame(t(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")]))
+abund_OTU_transvers_Cx$spe_richness <- vegan::specnumber(abund_OTU_transvers_Cx)
+abund_OTU_transvers_Cx$nbr_reads <- colSums(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")])
+
+cor.test(abund_OTU_transvers_Cx$nbr_reads,abund_OTU_transvers_Cx$spe_richness, method="pearson", alternative="two.sided")
+plot(abund_OTU_transvers_Cx$nbr_reads,abund_OTU_transvers_Cx$spe_richness, xlab = "nbr_reads", ylab= "OTUs",  cex = 1.5, pch = 19)
+text(20000,55,"cor.pearson = 0.86", font = 4, col = "blue")
+```
+
+*	L’analyse des reads viraux en fonction du nombre de moustiques présents dans chaque librairies
+```{r, fig.width=10, fig.height=6}
+abund_OTU_transvers_Cx$Sample <- rownames(abund_OTU_transvers_Cx)
+abund_OTU_transvers_Cx <- abund_OTU_transvers_Cx[sort(abund_OTU_transvers_Cx$Sample),]
+
+# Mosquito number
+abund_OTU_transvers_Cx$nbr_mos <- c(94, 551, 112, 103, 786, 383, 3829,3921, 98, 85, 4062, 3185)
+
+# Species
+abund_OTU_transvers_Cx$Host <- rep(c("C. poicilipes", "C. tritaeniorhynchus"), each=6, times=1)
+
+# Sites
+abund_OTU_transvers_Cx$Site <- rep(c("Diama", "Ferlo","KMS"), times = 2, each = 2)
+
+# Year
+abund_OTU_transvers_Cx$Year <- rep(c("2014", "2015"), each=1, times=6)
+
+cor.test(abund_OTU_transvers_Cx$nbr_mos,abund_OTU_transvers_Cx$nbr_reads, method="pearson", alternative="two.sided")
+plot(abund_OTU_transvers_Cx$nbr_reads,abund_OTU_transvers_Cx$nbr_mos, xlab = "nbr_reads", ylab= "nbr_mos", cex = 1.5, pch = 19)
+text(20000,2000,"cor.pearson = 0.1", font = 4, col = "blue")
+```
+
+*	Analyse de la composition générale (Nb de phylum/ Nb de Cluster/ Nb d’OTU)
+```{r}
+# cluster
+unique(count_otu_taxo_Cx$cluster)
+table(count_otu_taxo_Cx$cluster)
+
+# order
+unique(count_otu_taxo_Cx$order)
+table(count_otu_taxo_Cx$order)
+
+# Phylum
+unique(count_otu_taxo_Cx$phylum)
+table(count_otu_taxo_Cx$phylum)
+```
+
+
+*PS : Si travail sur clusters faire ces manips là :*
+```{r}
+# Pour obtenir une table de comptage pour les clusters
+count_cluster_Cx <- aggregate( . ~ cluster, data = count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5", "cluster")], function(x) x=sum(x))
+rownames(count_cluster_Cx) <- count_cluster_Cx$cluster
+count_cluster_Cx$sum_reads <- apply(count_cluster_Cx[,!colnames(count_cluster_Cx) %in% ("cluster")], 1, sum)
+count_cluster_Cx
+```
+*Pour le reste on est sur le même script/les mêmes manips*
+
+## 2.4 : Analyse des communautés virales (utilisation du package Phyloseq possible si préférences)
+
+*Package Phyloseq pas détaillé ici (hormis partie courbe de raréfaction) car peu utilisé, redite avec le reste et long, si besoin d'informations sur phyloseq suivre ces pages internets :* 
+
+<https://micca.readthedocs.io/en/latest/phyloseq.html>
+
+<https://vaulot.github.io/tutorials/Phyloseq_tutorial.html>
+
+<https://web.stanford.edu/class/bios221/labs/phyloseq/lab_phyloseq.html>
+
+*Packages* `Vegan`/`ade4`/`tibble`/`phyloseq`/`ggplot2`
+```{r, warning=FALSE, message=FALSE}
+library("tibble")
+library("phyloseq")
+library("ggplot2")
+library("ade4")
+library("vegan")
+```
+
+**3 Fichiers** sont nécessaires : 
+
+*	`OTU_table` 
+
+*	`Tax_table`
+
+*	`Sample_data` (metadata)
+
+```{r, warning=FALSE}
+# Renommer les librairies selon les index des samples
+otu_mat_Cx <- as.tibble(count_otu_taxo_Cx[,1:13]) %>%
+  tibble::column_to_rownames("tax_id") 
+
+tax_mat_Cx <- taxo_table_Cx[,c(1,4:12)] %>% 
+  tibble::column_to_rownames("tax_id")
+
+samples_df_Cx <- read_excel("D:/Mes Donnees/Thèse CIRAD/Projet P1 SENEGAL - Sympathôtes/Supp_data (metadata, description, ...)/metadata_PTQ.xlsx", sheet = "Feuil1")
+
+# Fusionner les deux tables 
+samples_df_Cx <- samples_df_Cx[17:28,] %>% 
+  tibble::column_to_rownames("sample") 
+
+samples_df_Cx <- rename.vars(samples_df_Cx, from = "species", to = "Host")
+
+otu_mat_Cx <- as.matrix(otu_mat_Cx)
+tax_mat_Cx <- as.matrix(tax_mat_Cx)
+
+OTU_Cx = otu_table(otu_mat_Cx, taxa_are_rows = TRUE)
+TAX_Cx = tax_table(tax_mat_Cx)
+samples_Cx = sample_data(samples_df_Cx)
+
+carbom_Cx <- phyloseq(OTU_Cx, TAX_Cx, samples_Cx)
+carbom_Cx
+```
+
+**Le nombre d’échantillons et d’OTU doit être le même dans tous les fichiers**
+
+### 2.4.1 : Courbe de raréfaction
+
+L’analyse des **courbes de raréfaction** nous permet de savoir si notre profondeur de séquençage est suffisante pour capter les organismes en faible proportion et ainsi savoir si notre richesse estimée correspond à la richesse réelle du virome. Elle permet d’éliminer les **librairies « outlayers »** qui resteraient après les premières manip de filtration
+
+*Principe* : On Compte le nombre d’OTU pour un ensemble de sous-échantillon à différents intervalles de profondeur. On regarde en Y le nb d’OTU observées et en X le nb de lecture. L’obtention d’un **plateau** permet de dire si l’échantillon a une profondeur de séquençage optimale. 
+
+```{r, fig.width=10, fig.height=6}
+rarecurve(t(otu_table(carbom_Cx)), step=50, cex=1, lwd = 2, ylab = "OTUs", xlab = "Reads number") # avant normalisation 
+```
+
+### 2.4.2 : Exploration de la biodiversité par visualisation de la composition
+
+*	Barplot composition (OTU ou Cluster abondance /sample) + statistiques : possibilité de le faire avec `phyloseq` 
+```{r, fig.width=10, fig.height=6}
+barplot(colSums(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")]))
+
+wilcox_table <- as.data.frame(t(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")]))
+wilcox_table$total <- apply(wilcox_table, 1, sum)
+wilcox_table$sample <- rownames(wilcox_table)
+wilcox_table <- as.data.frame(wilcox_table[,colnames(wilcox_table) %in% c("total", "sample")])
+
+wsrTest(wilcox_table$total)
+```
+
+Pour `OTU_table` : les données doivent être normalisées **(après les analyses préliminaires)** pour être en abondance relative, soit (read OTU de l’échantillon/ read totaux de l’échantillon) x 10 000 
+```{r}
+count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")] <- lapply(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")], function(x) round(1e4*x/sum(x, na.rm=TRUE), digits = 0)) 
+lapply(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")], sum) # check normalisation
+summary(count_otu_taxo_Cx)
+```
+
+*	Heatmap (présence/absence) : nécessite transformation des données :
+```{r, fig.width=10, fig.height=10, warning=FALSE}
+decostand(count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5")], method = "pa") %>%
+superheat(# dendrograms
+          row.dendrogram = T,
+          col.dendrogram = T,
+          # grid lines
+          grid.hline.col = "white",
+          grid.vline.col = "white",
+          # bottom labels
+          bottom.label.col = adjustcolor(c("#F8766D","#F8766D","#00BFC4","#F8766D","#00BFC4","#F8766D","#00BFC4","#00BFC4","#00BFC4","#F8766D","#F8766D","#00BFC4"), alpha.f = 0.6),
+          bottom.label.text.angle = 90,
+          bottom.label.text.size = 5,
+          # left labels
+          left.label.text.size = 2)
+```
+
+* Diagramme de Venn représentant le nombre et les proportions d’OTUs Partagés entre différentes conditions (OTUs "*généralistes*")
+```{r, fig.width=10, fig.height=8}
+## per species 
+spec.pa <- decostand(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads","Sample","nbr_mos", "Host", "Site", "Year")], method = "pa")
+spec.pa <- as.data.frame(t(spec.pa))
+
+spec.pa$poicilipes <- apply(spec.pa[,colnames(spec.pa) %in% c("PD4", "PD5", "PF4", "PF5", "PK4", "PK5")], 1, sum) # sum de toutes les colonnes appartenant à poicilipes pour chaque ligne
+spec.pa$tritaeniorhynchus <- apply(spec.pa[,c("TD4", "TD5", "TF4", "TF5", "TK4", "TK5")], 1, sum) # sum de toutes les colonnes appartenant à tritaeniorhynchus pour chaque ligne
+
+spec.pa$OTU <- rownames(spec.pa)
+
+# Poicilipes
+spec.pa_poi_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = starts_with("P"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_poi_pivot <- subset(spec.pa_poi_pivot,spec.pa_poi_pivot$pres == 1)
+
+# Tritaeniorhynchus
+spec.pa_tri_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = starts_with("T"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_tri_pivot <- subset(spec.pa_tri_pivot,spec.pa_tri_pivot$pres == 1)
+
+spec.pa_pivot <- list( "C. poicilipes" = spec.pa_poi_pivot$OTU, 
+                       "C. tritaeniorhynchus" = spec.pa_tri_pivot$OTU)
+
+## per sites 
+spec.pa$Diama <- apply(spec.pa[,colnames(spec.pa) %in% c("PD4", "PD5", "TD4", "TD5")], 1, sum) # sum de toutes les colonnes appartenant à Diama pour chaque ligne
+spec.pa$Ferlo <- apply(spec.pa[,colnames(spec.pa) %in% c("PF4", "PF5", "TF4", "TF5")], 1, sum) # sum de toutes les colonnes appartenant à Ferlo pour chaque ligne
+spec.pa$KMS <- apply(spec.pa[,colnames(spec.pa) %in% c("PK4", "PK5", "TK4", "TK5")], 1, sum) # sum de toutes les colonnes appartenant à KMS pour chaque ligne
+
+# Diama
+spec.pa_Diama_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = contains("D"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_Diama_pivot <- subset(spec.pa_Diama_pivot,spec.pa_Diama_pivot$pres == 1)
+
+# Ferlo
+spec.pa_Ferlo_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = contains("F"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_Ferlo_pivot <- subset(spec.pa_Ferlo_pivot,spec.pa_Ferlo_pivot$pres == 1)
+
+# KMS
+spec.pa_KMS_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = contains("K"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_KMS_pivot <- subset(spec.pa_KMS_pivot,spec.pa_KMS_pivot$pres == 1)
+
+
+spec.pa_pivot_habitat <- list( Diama = spec.pa_Diama_pivot$OTU, 
+                               Ferlo = spec.pa_Ferlo_pivot$OTU, 
+                               KMS = spec.pa_KMS_pivot$OTU)
+
+## per year
+
+spec.pa$annee14<- apply(spec.pa[,colnames(spec.pa) %in% c("PD4", "PF4", "PK4", "TD4", "TF4", "TK4")], 1, sum) # sum de toutes les colonnes appartenant à poicilipes pour chaque ligne
+spec.pa$annee15 <- apply(spec.pa[,colnames(spec.pa) %in% c("PD5", "PF5", "PK5", "TD5", "TF5", "TK5")], 1, sum) # sum de toutes les colonnes appartenant à tritaenirhynchus pour chaque ligne
+
+# 2014
+spec.pa_2014_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = ends_with("4"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_2014_pivot <- subset(spec.pa_2014_pivot,spec.pa_2014_pivot$pres == 1)
+
+# 2015
+spec.pa_2015_pivot <- spec.pa %>%
+  pivot_longer(
+    cols = ends_with("5"), names_to = "Sample", values_to = "pres",
+    values_drop_na = TRUE)
+
+spec.pa_2015_pivot <- subset(spec.pa_2015_pivot,spec.pa_2015_pivot$pres == 1)
+
+spec.pa_pivot_annee <- list( "2014" = spec.pa_2014_pivot$OTU, 
+                             "2015" = spec.pa_2015_pivot$OTU)
+
+# Graph GGvenn
+# per species
+ggvenn(
+  spec.pa_pivot, 
+  fill_color = c("#F8766D", "#00BFC4", "#868686FF", "#CD534CFF"),
+  stroke_size = 0.5, set_name_size = 8, text_size = 8
+) 
+
+# per sites 
+ggvenn(
+  spec.pa_pivot_habitat, 
+  fill_color = c("#868686FF", "#868686FF", "#868686FF", "#CD534CFF"), fill_alpha = 0.4, 
+  stroke_size = 0.5, set_name_size = 8, text_size = 6
+)
+
+# per year
+ggvenn(
+  spec.pa_pivot_annee, 
+  fill_color = c("#868686FF", "#868686FF", "#868686FF", "#CD534CFF"), fill_alpha = 0.4,
+  stroke_size = 0.5, set_name_size = 8, text_size = 8
+)
+
+```
+
+* Camembert pour représenter la diversité taxonomique de nos vOTUs
+
+*Pour configurer/changer les couleurs ou l'ordre des parts de camembert, demander à Côme*
+```{r, fig.width=10, fig.height=10, warning=FALSE}
+PieDonut(count_otu_taxo_Cx, aes(pies=phylum, donuts=order), r0=0, showPieName=FALSE, showRatioThreshold = getOption("PieDonut.showRatioThreshold", 0.01), labelposition = getOption("PieDonut.labelposition", 1), donutLabelSize =3.5, pieLabelSize = 4, ratioByGroup=F)
+```
+
+### 2.4.3 : Exploration de l’ Alpha diversité avec des indices statistiques
+
+![Figure : Représentation schématique de la diversité alpha et beta](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/Alpha_Beta_diversity.png)
+
+**Diversité Alpha (intra communauté)**
+
+* **Richesse Observée** (nombre d’espèces)
+    
+```{r}
+abund_OTU_transvers_Cx$spe_richness <- abund_OTU_transvers_Cx %>%
+  select(! c("spe_richness", "nbr_reads","Sample","nbr_mos", "Host", "Site", "Year")) %>%
+  vegan::specnumber()
+```
+
+* **Indice de Shannon** (abondance de la distribution des espèces)
+  
+*Plus l’indice de Shanon est élevé plus la diversité est grande*
+```{r}
+abund_OTU_transvers_Cx$shannon <- abund_OTU_transvers_Cx %>%
+  select(! c("spe_richness", "nbr_reads","Sample","nbr_mos", "Host", "Site", "Year")) %>%
+  vegan::diversity(index="shannon")
+```
+
+*	**Indice de Simpson** (probabilité que 2 OTU prises aléatoirement proviennent de la même espèce)
+  
+*Plus l’indice de Simpson est petit plus la diversité est grande*
+```{r}
+abund_OTU_transvers_Cx$simpson <- abund_OTU_transvers_Cx %>%
+  select(! c("spe_richness", "nbr_reads","Sample","nbr_mos", "Host", "Site", "Year", "shannon")) %>%
+  vegan::diversity(index = "simpson") 
+```
+
+*Exemple : boxplots*
+```{r, fig.width=10, fig.height=8, warning=FALSE}
+shannon_Cx <- ggplot(abund_OTU_transvers_Cx, aes(x=Host, y=shannon)) + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  geom_boxplot(aes(fill=Host), alpha=0.1) + 
+  theme_ipsum() +
+  theme_classic() + 
+  geom_jitter(aes(shape = Year, col = Site), size=3, alpha=1, width = 0.25) +
+  scale_x_discrete(labels=c("C. poicilipes" = "poicilipes", "C. tritaeniorhynchus" = "tritaeniorhynchus")) +
+  geom_signif(comparisons = list(c("C. poicilipes", "C. tritaeniorhynchus")), test = "wilcox.test", map_signif_level=TRUE, tip_length = 0, col="black", y_position = 3.2) +
+  labs(y=NULL, x=NULL) + theme(axis.text = element_text(size = 12)) + theme(legend.text = element_text(size = 10))  
+
+simpson_Cx <- ggplot(abund_OTU_transvers_Cx, aes(x=Host, y=simpson)) + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  geom_boxplot(aes(fill=Host), alpha=0.1) + 
+  theme_ipsum() +
+  theme_classic() + 
+  geom_jitter(aes(shape = Year, col = Site), size=3, alpha=1, width = 0.25) + 
+  scale_x_discrete(labels=c("C. poicilipes" = "poicilipes", "C. tritaeniorhynchus" = "tritaeniorhynchus")) +
+  geom_signif(comparisons = list(c("C. poicilipes", "C. tritaeniorhynchus")), test = "wilcox.test", map_signif_level=TRUE, tip_length = 0, col="black", y_position = 0.93) +
+  labs(y=NULL, x=NULL) + theme(axis.text = element_text(size = 12)) + theme(legend.text = element_text(size = 10))
+
+spe_rich_Cx <- ggplot(abund_OTU_transvers_Cx, aes(x=Host, y=spe_richness)) + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  geom_boxplot(aes(fill=Host), alpha=0.1) + 
+  theme_ipsum() +
+  theme_classic() + 
+  geom_jitter(aes(shape = Year, col = Site), size=3, alpha=1, width = 0.25) +
+  scale_x_discrete(labels=c("C. poicilipes" = "poicilipes", "C. tritaeniorhynchus" = "tritaeniorhynchus")) +
+  geom_signif(comparisons = list(c("C. poicilipes", "C. tritaeniorhynchus")), test = "wilcox.test", map_signif_level=TRUE, tip_length = 0, col="black", y_position = 60) +
+  labs(y=NULL, x=NULL) + theme(axis.text = element_text(size = 12)) + theme(legend.text = element_text(size = 10))
+
+graph_species <- ggpubr::ggarrange(spe_rich_Cx, shannon_Cx, simpson_Cx, labels = c("Richness", "Shannon", "Simpson"), hjust = -0.8,
+                  common.legend = T, legend = "right", ncol = 3)
+graph_species
+```
+
+Test Stat de `Kruskall Wallis` (données non paramétriques, si comparaison de plus de 2 groupes non appariés).
+Test de `Wilcoxon Mann-Whitney` si 2 groupes.
+
+### 2.4.4 : Exploration de la biodiversité Beta
+
+La **Beta diversité** permet d’estimer la différence de diversité **INTER-échantillons**. 3 indices peuvent être utilisés, **Jaccard**, **Sorensen** et **Bray curtis**
+
+*	**L’indice de dissimilarité de Jaccard (qualitatif)** : prend en compte la proportion d’OTU spécifiques, il est juste basé sur les données de **présence/absence**. mesure la similitude en comparant le nombre d'éléments communs aux éléments uniques aux deux ensembles. Il est calculé en divisant le nombre d'éléments communs par le nombre total d'éléments uniques aux deux ensembles. Plus la valeur de l'indice de Jaccard est proche de 0, plus les deux ensembles sont similaires. Ne prend pas en compte les valeurs égales à zéro.
+
+*	**L’indice de dissimilarité de Sorensen (qualitatif)** : mesure également la similitude en comparant le nombre d'éléments communs aux éléments uniques aux deux ensembles. Il est calculé en divisant le nombre d'éléments communs par la somme des tailles des deux ensembles. Plus la valeur de l'indice de Sørensen est proche de 0, plus les deux ensembles sont similaires.
+En résumé, la différence entre les deux indices est **la façon dont ils calculent la similitude**. L'indice de Jaccard divise le nombre d'éléments communs par le nombre total d'éléments uniques aux deux ensembles, tandis que l'indice de Sørensen divise le nombre d'éléments communs par la somme des tailles des deux ensembles. L'indice de Sorensen est conceptuellement équivalent à celui de Bray-curtis mais s'utilise sur des données de **présence/absence**. Il n'est néanmoins pas métrique (ne respecte pas l'inégalité triangulaire contrairement à Jaccard)
+
+*	**L’indice quantitatif de Bray curtis (quantitatif)** : proportion de **l’abondance d’espèces spécifiques**. Lorsque l'indice de Bray Curtis proche de 0 cela signifie que des OTU abondantes sont partagées dans les mêmes quantités entre les communautés. Cet indice est calculé en divisant la somme des différences absolues des abundances relatives des espèces par la somme totale des abundances relatives des espèces dans les deux communautés. Plus la valeur de l'indice est proche de 0, plus les deux communautés sont similaires, et plus la valeur est proche de 1, plus les deux communautés sont différentes.
+
+## 2.5 : Visualisation de la structure par ordination et heatmap
+
+*	Test de plusieurs méthodes de distance, comparaison des indices de **Bray-curtis** et **Jaccard** (*Package* `Phyloseq` aussi utilisable)
+
+*	Représentation par Heatmap (`Phyloseq` ou autres packages : `ComplexHeatmap`, `pheatmap`, `superheat`, ...)
+
+```{r, fig.width=10, fig.height=8, message=FALSE}
+HT1 <- Heatmap(as.matrix(count_otu_taxo_Cx[,2:13]), name = "relative abundance", 
+               row_names_gp = gpar(fontsize = 6), 
+               column_names_side = "top", 
+               column_names_rot = 0, 
+               heatmap_legend_param = list(direction = "horizontal"), 
+               row_names_side = "left",  
+               row_order = order(-count_otu_taxo_Cx$sum_reads), 
+               top_annotation = HeatmapAnnotation(species = c("C. tritaeniorhynchus","C. tritaeniorhynchus","C. poicilipes","C. tritaeniorhynchus","C. poicilipes","C. tritaeniorhynchus","C. poicilipes","C. poicilipes","C. poicilipes","C. tritaeniorhynchus","C. tritaeniorhynchus","C. poicilipes"),
+                                                  col = list(species = c("C. poicilipes" = "#F8766D", "C. tritaeniorhynchus"="#00BFC4"), 
+                                                             which = "column"),
+                                                  show_legend = F),
+               rect_gp = gpar(col = "white", lwd = 1), 
+               column_names_gp = gpar(col = c("#00BFC4","#00BFC4","#F8766D","#00BFC4","#F8766D","#00BFC4","#F8766D","#F8766D","#F8766D","#00BFC4","#00BFC4","#F8766D"), font = 2)) 
+
+draw(HT1, heatmap_legend_side = "bottom", annotation_legend_side = NULL) 
+```
+
+*	Test de plusieurs méthodes d’ordination par le calcul d’une matrice de distance sur la table d’abondance. (*MDS-nMDS-PCoA*….)
+
+On désigne sous le terme de **MDS (multidimensional scaling)**, un ensemble de techniques permettant de représenter les données d'une matrice de proximité entre objets à l'aide de modèles de distances spatiales. Le **MDS** essaie de représenter des échantillons en 2 dimensions tout en préservant les distances.
+
+Le **nMDS (non Metric Multidimensional scale)** place les points selon les distances calculées avec la méthode choisie (bray/jaccard/sorensen), et représente au mieux les relations de ressemblances entre objets. 
+Dans le **nMDS** non métrique, on cherche à préserver l'ordre des proximités et non leurs valeurs absolues ou relatives. Autrement dit, le but est de représenter les distances entre les objets, en respectant l'ordre entre les proximités plutôt que leurs valeurs exactes. 
+
+La **PCoA** équivaut à une analyse en composante principales (ACP) mais préserve la diversité beta au lieu de la variance. La PCoA représente les groupes en utilisant la matrice de distance afin de regrouper les échantillons selon leur « association ».
+
+*Exemple nNMDS/Bray-Curtis data SENEGAL* 
+```{r, fig.width=10, fig.height=6}
+set.seed(123)
+spe.nmds = metaMDS(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads","Sample","nbr_mos", "shannon", "simpson", "Host", "Site", "Year")], distance = "bray")
+spe.nmds
+
+plot(spe.nmds)
+
+# extract NMDS scores (x and y coordinates)
+data.scores = as.data.frame(scores(spe.nmds))
+
+# add columns to data frame 
+data.scores$Host = abund_OTU_transvers_Cx$Host
+data.scores$Site = abund_OTU_transvers_Cx$Site
+data.scores$Year = abund_OTU_transvers_Cx$Year
+
+head(data.scores)
+
+# nMDS
+nMDS_plot = ggplot(data.scores, aes(x = NMDS1, y = NMDS2)) + 
+  geom_point(aes(shape = Site, colour = Host), size = 4) + 
+  theme(axis.text.y = element_text(colour = "black", size = 12, face = "bold"), 
+        axis.text.x = element_text(colour = "black", face = "bold", size = 12), 
+        legend.text = element_text(size = 6, face ="bold", colour ="black"), 
+        legend.position = "right", axis.title.y = element_text(face = "bold", size = 14), 
+        axis.title.x = element_text(face = "bold", size = 14, colour = "black"), 
+        legend.title = element_text(size = 6, colour = "black", face = "bold"), 
+        panel.background = element_blank(), panel.border = element_rect(colour = "black", fill = NA, size = 1.2),
+        legend.key=element_blank(), plot.title = element_text(color="black", size=14, face="bold.italic")) + 
+  ggtitle("nMDS / Bray curtis") + 
+  labs(x = "NMDS1", y = "NMDS2")  + 
+  scale_colour_manual(values = c("#F8766D", "#00BFC4", "#009E73")) + theme_bw() + theme(legend.position = "none")
+nMDS_plot
+```
+
+*Exemple PCoA/Bray-Curtis data SENEGAL* 
+```{r}
+# Transformation matrice bray-curtis
+spe.bray<-vegdist(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads","Sample","nbr_mos", "shannon", "simpson", "Host", "Site", "Year")], method="bray")
+spe.bray
+```
+
+Construction de la PCoA :
+```{r, fig.width=10, fig.height=6}
+pcoa <- cmdscale(spe.bray, k=3, eig = T, add = T) # avec k=3 ici donc sélection de trois axes, mais visualisation avec 2 seulement avec PCoA (pour simplification)
+pcoa %>% head()
+positions <- pcoa$points
+colnames(positions) <- c("pcoa1", "pcoa2", "pcoa3")
+positions %>% head()
+
+percent_explained <- 100 * pcoa$eig / sum(pcoa$eig)
+
+pretty_pe <- format(round(percent_explained[1:3], digits =1), nsmall = 1, trim = T)
+
+labs <- c(glue("PCo1 ({pretty_pe[1]}%)"),
+          glue("PCo2 ({pretty_pe[2]}%)"),
+          glue("PCo3 ({pretty_pe[3]}%)"))
+
+positions <- as.data.frame(positions)
+positions$Host <- abund_OTU_transvers_Cx$Host
+positions$Site <- abund_OTU_transvers_Cx$Site
+positions$Year <- abund_OTU_transvers_Cx$Year
+
+positions %>% 
+  as_tibble(rownames="samples") %>% 
+  ggplot(aes(x=pcoa1, y=pcoa2, color=Host, shape=Site)) + 
+  geom_point(size = 4) +
+  labs(x = labs[1], y = labs[2])
+```
+
+Créer un scree plot pour observer la quantité de variations de chaque axe :
+
+*Ici, les deux premiers axes représentent quasiment 50% de la variation totale (si on veut prendre plus de variation on rajoute des axes)*
+```{r, fig.width=10, fig.height=6}
+tibble(pe = cumsum(percent_explained),
+       axis = 1:length(percent_explained)) %>%
+  ggplot(aes(x=axis, y=pe)) + 
+  geom_line() 
+```
+
+Construction d'une PCoA en 3D pour visualiser plus facilement plus de 2 axes (ajout de la dimension z) :
+```{r}
+positions <- positions %>% 
+  mutate(Host = factor(Host, levels=c("C. poicilipes", "C. tritaeniorhynchus")),
+  Host_color = case_when(Host == "C. poicilipes" ~ "blue",
+                         Host == "C. tritaeniorhynchus" ~ "red", 
+                         TRUE ~ NA_character_))
+
+plot3d(x=positions$pcoa1, y=positions$pcoa2, z=positions$pcoa3,
+       xlab = labs[1], ylab = labs[2], zlab = labs[3],
+       col=positions$Host_color, type="s", size=1)
+```
+
+## 2.6 : Pour aller plus loin
+
+### 2.6.1 : Différences indices de dissimilarité (diversité Beta)
+
+*Revoir la définition des indices écologiques dans la partie "**2.4.4 : Exploration de la biodiversité Beta**"*
+
+*Si question sur cette partie, demander à Serafin ou Côme*
+
+```{r, fig.width=10, fig.height=8, warning=FALSE}
+## Jaccard, Bray-Curtis and Sorensen indexes
+jacc_tab <- vegdist(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads", "Sample", "nbr_mos", "shannon", "simpson", "Host", "Site", "Year")], method="jaccard", binary = T) 
+Bray_tab <- vegdist(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads", "Sample", "nbr_mos", "shannon", "simpson", "Host", "Site", "Year")], method="bray")
+Sor_tab <- vegdist(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads", "Sample", "nbr_mos", "shannon", "simpson", "Host", "Site", "Year")], method="bray", binary = T)
+
+# Transformation in matrix
+jacc_tab2 <- as.matrix(jacc_tab)
+Bray_tab2 <- as.matrix(Bray_tab)
+Sor_tab2 <- as.matrix(Sor_tab)
+jacc_tab3 <- melt(as.matrix(jacc_tab), varnames = c("row", "col"))
+Bray_tab3 <- melt(as.matrix(Bray_tab), varnames = c("row", "col"))
+Sor_tab3 <- melt(as.matrix(Sor_tab), varnames = c("row", "col"))
+
+# Download in csv files
+write.csv2(jacc_tab2, file = "jaccard_OTU.csv")
+write.csv2(Bray_tab2, file = "BrayCurtis_OTU.csv")
+write.csv2(Sor_tab2, file = "Sorensen_OTU.csv")
+write.csv2(jacc_tab3, file = "jaccard_OTU_2.csv")
+write.csv2(Bray_tab3, file = "BrayCurtis_OTU_2.csv")
+write.csv2(Sor_tab3, file = "Sorensen_OTU_2.csv")
+
+## the two files have been merged in dist_matrixes_Jac_Bray.xlsx (reports folder)
+dist_matrixes_Jac_Bray_OTU <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3.xlsx") # in reports folder
+
+# Fig. with all point/all librarie comparison.
+fig_betaindexes <- dist_matrixes_Jac_Bray_OTU %>%
+  filter(value != 0) %>%
+  ggplot() +
+  geom_jitter(aes(x = row, y = value, colour = col), width = 0.1) +
+  xlab("") +
+  ylab("") +
+  theme_bw() +
+  facet_wrap(~ index)
+fig_betaindexes <- fig_betaindexes +
+  theme(axis.text.x = element_text(size = 9, angle = 25, hjust = 1, debug = FALSE),
+        legend.title = element_blank())
+
+# statistical analysis of beta indexes: compare BC and Jaccard/Sorensen depending on species
+dist_Jac_Bray2 <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3_modif_for_protocole.xlsx") # in reports folder
+
+# change the dataframe structure 
+dist_Jac_Bray3 <- dist_Jac_Bray2 %>%
+  pivot_longer(., starts_with(c("P", "T")), 
+               names_to = "sample", 
+               values_to = "estimate", 
+               values_drop_na = TRUE) %>%
+  separate(., col = "sample", into = c("Nothing1", "Host1", "habitat1", "year1"), 
+           sep = "", remove = FALSE) %>%
+  separate(., col = "row", into = c("Nothing2", "Host2", "habitat2", "year2"), 
+           sep = "", remove = FALSE) 
+
+dist_Jac_Bray3 <- dist_Jac_Bray3[,! colnames(dist_Jac_Bray3) %in% c("Nothing1", "Nothing2")]
+
+dist_Jac_Bray3 <- dist_Jac_Bray3 %>%
+  mutate(Host = if_else(Host1 == Host2, "same", "different"))
+dist_Jac_Bray3 <- dist_Jac_Bray3 %>%
+  mutate(Habitat = if_else(habitat1 == habitat2, "same", "different"))
+dist_Jac_Bray3 <- dist_Jac_Bray3 %>%
+  mutate(Year = if_else(year1 == year2, "same", "different"))
+
+dist_Jac <- dist_Jac_Bray3 %>% filter(index == "jaccard")
+dist_BC <- dist_Jac_Bray3 %>% filter(index == "bray-curtis")
+dist_sor <- dist_Jac_Bray3 %>% filter(index == "sorensen")
+
+# statistic tests
+wilcox.test(dist_Jac$estimate ~ dist_Jac$Host) # p-value = 0.01467
+wilcox.test(dist_BC$estimate ~ dist_BC$Host) # p-value = 2.877e-05
+wilcox.test(dist_sor$estimate ~ dist_sor$Host) # p-value = 0.01467
+kruskal.test(dist_Jac$estimate ~ dist_Jac$Habitat) # p-value = 0.1116
+kruskal.test(dist_BC$estimate ~ dist_BC$Habitat) # p-value = 0.4986
+kruskal.test(dist_Jac$estimate ~ dist_Jac$Year) # p-value = 0.7281
+kruskal.test(dist_BC$estimate ~ dist_BC$Year) # p-value = 0.3882
+
+# Fig. compare indexes depending on shared Host or Habitat 
+fig_betaindexes_Host <- dist_Jac_Bray3 %>%
+  ggplot(aes(x = Host, y = estimate)) +
+  geom_jitter(aes(colour = if_else(Host == "same", Host1, "black")), width = 0.1) +
+  scale_color_manual(name = "Host1", values = c("black", "blue", "red", "purple")) +
+  xlab("") +
+  ylab("") +
+  theme_bw() +
+  facet_wrap(~ index) + 
+  geom_signif(comparisons = list(c("different", "same")), test = "wilcox.test", map_signif_level=TRUE, tip_length = 0, col="black")
+fig_betaindexes_Host <- fig_betaindexes_Host + theme(legend.position = "none") +
+  ggtitle("Host")
+
+fig_betaindexes_Habitat <- dist_Jac_Bray3 %>%
+  ggplot(aes(x = Habitat, y = estimate)) +
+  geom_jitter(aes(colour = if_else(Habitat == "same", habitat1, "black")), width = 0.1) +
+  scale_color_manual(name = "habitat1", values = c("black", "blue", "red", "purple")) +
+  xlab("") +
+  ylab("") +
+  theme_bw() +
+  facet_wrap(~ index) + 
+  geom_signif(comparisons = list(c("different", "same")), test = "wilcox.test", map_signif_level=TRUE, tip_length = 0, col="black")
+fig_betaindexes_Habitat <- fig_betaindexes_Habitat + theme(legend.position = "none") +
+  ggtitle("Habitat")
+
+# just Host BC vs Jac
+fig_betaindexes_Host_dif <- dist_Jac_Bray3 %>%
+  filter(Host %in% "different") %>%
+  ggplot(aes(x = index, y = estimate)) +
+  geom_boxplot(fill='#d1cfcf', color="black") +
+  geom_jitter(aes(colour = if_else(Host == "same", Host1, "black")), width = 0.1, size = 2) +
+  scale_color_manual(name = "Host1", values = c("black", "blue", "red", "purple")) +
+  xlab("") +
+  ylab("") +
+  theme_bw() + 
+ # geom_hline(yintercept=0.5, linetype="dashed", 
+ #           color = "red", size=1) +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12)) 
+fig_betaindexes_Host_dif <- fig_betaindexes_Host_dif + theme(legend.position = "none") +
+  ggtitle("Host_dif") 
+
+fig_betaindexes/(fig_betaindexes_Host|fig_betaindexes_Host_dif) +
+  plot_annotation(tag_levels = 'A')
+
+# Moyenne Bray-Curtis
+dist_Jac_Bray3 %>% 
+  filter(Host %in% "different") %>%
+  filter(index %in% "bray-curtis") %>%
+  summarise(index = median(estimate, na.rm = TRUE)) # mean = 0.8569679
+# Moyenne Jaccard
+dist_Jac_Bray3 %>% 
+  filter(Host %in% "different") %>%
+  filter(index %in% "jaccard") %>%
+  summarise(index = median(estimate, na.rm = TRUE)) # mean = 0.6545107
+# Moyenne Sorensen
+dist_Jac_Bray3 %>% 
+  filter(Host %in% "different") %>%
+  filter(index %in% "sorensen") %>%
+  summarise(index = median(estimate, na.rm = TRUE)) # mean = 0.4864595
+```
+
+### 2.6.2 : Betadisperser pour tester l'homogénéité des dispersions multivariées
+
+**Betadisper tests** whether two or more groups (for example, grazed and ungrazed sites) are homogeneously dispersed in relation to their species in studied samples. This test can be done to see if one group has more compositional variance than another. Moreover, homogeneity of dispersion among groups is very advisable to have if you want to test if two or more groups have different compositions, which is tested by `adonis`.
+
+Betadisper first calculates the average distance of group members to the group centroid in multivariate space (generated by a distance matrix).
+Then, an `ANOVA` is done to test if the dispersions (variances) of groups are different.
+
+```{r, fig.width=10, fig.height=6}
+# Host : 
+# Bray-Curtis distances between samples
+dis <- vegdist(abund_OTU_transvers_Cx[,!colnames(abund_OTU_transvers_Cx) %in% c("spe_richness", "nbr_reads", "Sample", "nbr_mos", "shannon", "simpson", "Host", "Site", "Year")])
+
+# Calculate multivariate dispersions
+mod <- betadisper(dis, abund_OTU_transvers_Cx$Host)
+mod
+
+# Visualization of the multivariate homogeneity of group dispersions
+# extract the centroids and the site points in multivariate space.  
+centroids<-data.frame(grps=rownames(mod$centroids),data.frame(mod$centroids))
+vectors<-data.frame(group=mod$group,data.frame(mod$vectors))
+
+# to create the lines from the centroids to each point we will put it in a format that ggplot can handle
+seg.data<-cbind(vectors[,1:3],centroids[rep(1:nrow(centroids),as.data.frame(table(vectors$group))$Freq),2:3])
+names(seg.data)<-c("group","v.PCoA1","v.PCoA2","PCoA1","PCoA2")
+
+# create the convex hulls of the outermost points
+grp1.hull<-seg.data[seg.data$group=="C. poicilipes",1:3][chull(seg.data[seg.data$group=="C. poicilipes",2:3]),]
+grp2.hull<-seg.data[seg.data$group=="C. tritaeniorhynchus",1:3][chull(seg.data[seg.data$group=="C. tritaeniorhynchus",2:3]),]
+all.hull<-rbind(grp1.hull,grp2.hull)
+
+# Graphic
+
+panel.a <- ggplot() + 
+  geom_point(data=centroids[1,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=16) + 
+  geom_point(data=seg.data[1:6,], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=16) +
+  labs(title="C. poicilipes",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.b <- ggplot() + 
+  geom_point(data=centroids[2,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=17) + 
+  geom_point(data=seg.data[7:12,], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=17) +
+  labs(title="C. tritaeniorhynchus",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.c <- ggplot() + 
+  geom_point(data=centroids[,1:3], aes(x=PCoA1,y=PCoA2,shape=grps),size=4,colour="red") + 
+  geom_point(data=seg.data, aes(x=v.PCoA1,y=v.PCoA2,shape=group),size=2) +
+  labs(title="All",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+grid.arrange(panel.a,panel.b,panel.c,nrow=1)
+
+# Site : 
+# Calculate multivariate dispersions
+mod <- betadisper(dis, abund_OTU_transvers_Cx$Site)
+mod
+
+# Visualization of the multivariate homogeneity of group dispersions
+# extract the centroids and the site points in multivariate space.  
+centroids <- data.frame(grps=rownames(mod$centroids),data.frame(mod$centroids))
+vectors <- data.frame(group=mod$group,data.frame(mod$vectors))
+
+# to create the lines from the centroids to each point we will put it in a format that ggplot can handle
+seg.data <- cbind(vectors[,1:3],centroids[rep(1:nrow(centroids),as.data.frame(table(vectors$group))$Freq),2:3])
+names(seg.data) <- c("group","v.PCoA1","v.PCoA2","PCoA1","PCoA2")
+
+# create the convex hulls of the outermost points
+grp1.hull <- seg.data[seg.data$group=="Diama",1:3][chull(seg.data[seg.data$group=="Diama",2:3]),]
+grp2.hull <- seg.data[seg.data$group=="Ferlo",1:3][chull(seg.data[seg.data$group=="Ferlo",2:3]),]
+grp3.hull <- seg.data[seg.data$group=="KMS",1:3][chull(seg.data[seg.data$group=="KMS",2:3]),]
+all.hull <- rbind(grp1.hull,grp2.hull,grp3.hull)
+
+# Graphic
+
+panel.a <- ggplot() + 
+  geom_point(data=centroids[1,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=16) + 
+  geom_point(data=seg.data[c(1:2,7:8),], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=16) +
+  labs(title="Diama",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.b <- ggplot() + 
+  geom_point(data=centroids[2,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=17) + 
+  geom_point(data=seg.data[c(3:4,9:10),], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=17) +
+  labs(title="Ferlo",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.c <- ggplot() + 
+  geom_point(data=centroids[2,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=15) + 
+  geom_point(data=seg.data[c(5:6,11:12),], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=15) +
+  labs(title="KMS",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.d <- ggplot() + 
+  geom_point(data=centroids[,1:3], aes(x=PCoA1,y=PCoA2,shape=grps),size=4,colour="red") + 
+  geom_point(data=seg.data, aes(x=v.PCoA1,y=v.PCoA2,shape=group),size=2) +
+  labs(title="All",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+grid.arrange(panel.a,panel.b,panel.c,panel.d,nrow=1)
+
+# Year : 
+# Calculate multivariate dispersions
+mod <- betadisper(dis, abund_OTU_transvers_Cx$Year)
+mod
+
+# Visualization of the multivariate homogeneity of group dispersions
+# extract the centroids and the site points in multivariate space.  
+centroids <- data.frame(grps=rownames(mod$centroids),data.frame(mod$centroids))
+vectors <- data.frame(group=mod$group,data.frame(mod$vectors))
+
+# to create the lines from the centroids to each point we will put it in a format that ggplot can handle
+seg.data <- cbind(vectors[,1:3],centroids[rep(1:nrow(centroids),as.data.frame(table(vectors$group))$Freq),2:3])
+names(seg.data) <- c("group","v.PCoA1","v.PCoA2","PCoA1","PCoA2")
+
+# create the convex hulls of the outermost points
+grp1.hull <- seg.data[seg.data$group=="2014",1:3][chull(seg.data[seg.data$group=="2014",2:3]),]
+grp2.hull <- seg.data[seg.data$group=="2015",1:3][chull(seg.data[seg.data$group=="2015",2:3]),]
+all.hull <- rbind(grp1.hull,grp2.hull)
+
+# Graphic
+
+panel.a <- ggplot() + 
+  geom_point(data=centroids[1,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=16) + 
+  geom_point(data=seg.data[c(1,3,5,7,9,11),], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=16) +
+  labs(title="2014",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.b <- ggplot() + 
+  geom_point(data=centroids[2,1:3], aes(x=PCoA1,y=PCoA2),size=4,colour="red",shape=17) + 
+  geom_point(data=seg.data[c(2,4,6,8,10,12),], aes(x=v.PCoA1,y=v.PCoA2),size=2,shape=17) +
+  labs(title="2015",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+panel.c <- ggplot() + 
+  geom_point(data=centroids[,1:3], aes(x=PCoA1,y=PCoA2,shape=grps),size=4,colour="red") + 
+  geom_point(data=seg.data, aes(x=v.PCoA1,y=v.PCoA2,shape=group),size=2) +
+  labs(title="All",x="",y="") +
+  coord_cartesian(xlim = c(-0.5,0.5), ylim = c(-0.5,0.5)) +
+  theme_bw() + 
+  theme(legend.position="none")
+
+grid.arrange(panel.a,panel.b,panel.c,nrow=1)
+
+```
+
+### 2.6.3 : Créer une cartographie des points d'échantillonnages des données
+
+Plus d'informations [ici](https://ahurford.github.io/quant-guide-all-courses/making-maps.html#introduction-4) :
+
+*Nécessite certaines librairies spécifiques à installer/charger :*
+```{r, message=FALSE, warning=FALSE}
+#install.packages("devtools") # install + load packages
+#devtools::install_github("ropensci/rnaturalearthhires")
+library("rnaturalearth")
+library("ggspatial")
+library("cowplot")
+library("ggrepel")
+```
+
+Créer la carte du Sénégal (dans le cadre de cette étude) :
+```{r}
+senegal_map <- ne_states(country = c("senegal", "gambia", "mauritania", "mali", "guinea bissau", "guinea"), returnclass = "sf") # chargement des pays proches du sénégal pour faire une carte plus large 
+senegal_map
+```
+
+Créer la carte du Monde : 
+```{r, fig.width=8, fig.height=8, message=FALSE, warning=FALSE}
+# load world map
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+# create new column to put a discrete value on Senegal
+world$SEN <- world$name == "Senegal"
+world$SEN[world$SEN == TRUE] <- 1
+world$SEN[world$SEN == FALSE] <- 0
+
+# plot world_map with senegal highlight
+map_World <- ggplot() +  
+  geom_sf(data = world, colour = "black", fill = ifelse(world$name == "Senegal", '#FCFC9C', '#ededeb')) + # highlight senegal
+  annotation_scale(location = "bl", width_hint = 0.2) + # put scale on map 
+  coord_sf(xlim = c(-16, 50), ylim = c(-35, 35)) + # Zoom on the area of interest
+  theme(panel.background = element_rect(fill = "aliceblue"),
+        plot.background = element_blank()) + # put blue background (for sea)
+  #theme_void() + 
+  annotate(geom = "text", x = c(-5,43), y = c(-14,-32), label = c("Atlantic Ocean", "Indian Ocean"),fontface = "italic", color = "grey22", size = 4) # annotate Ocean
+map_World
+```
+
+Charger un fichier de métadonnées comprenant la position géographique des sites (Latitude et Longitude) :
+```{r}
+SupData_merge <- read_excel("Projet P1 SENEGAL - Sympathôtes/Supp_data (metadata, description, ...)/SupData_merge_1.xlsx")
+SupData_merge
+```
+
+Créer la carte récapitulative avec la carte du Sénégal et la carte du monde intégrée pour la localisation du Sénégal à l'échelle globale
+```{r, fig.width=10, fig.height=6, message=FALSE, warning=FALSE}
+# plot senegal with point and world map in top right
+ggdraw(ggplot() + 
+  geom_sf(data = senegal_map, colour = "black", fill = ifelse(senegal_map$iso_a2 == "SN", '#FCFC9C', '#ededeb')) + # highlight senegal
+  theme(panel.background = element_rect(fill = "aliceblue")) + # put blue background (for sea)
+  geom_point(aes(x=Longitude, y=Latitude, group=Region), data=SupData_merge, size = 6) + # put point of region of interest
+  geom_text_repel(aes(x=Longitude, y=Latitude, label = Region), data=SupData_merge, size = 5, fontface = 2, box.padding = unit(1.5, "lines"), point.padding = unit(1.5, "lines"), segment.size  = 1) + # put lines for point
+  coord_sf(xlim = c(-18, -10), ylim = c(11.8, 17)) + # zoom coord
+  annotation_scale(location = "bl", width_hint = 0.2) + # put scale on map
+  annotation_north_arrow(location = "tl", which_north = "true",
+                         height = unit(2, "cm"), width = unit(2, "cm"),
+                         style = north_arrow_fancy_orienteering)) + # put arrow on map
+  draw_plot(map_World, width = 0.4, height = 0.4, x = 0.585, y = 0.59) # put world map on top right
+```
+
+# References
+
+Allaire, JJ, Jeffrey Horner, Yihui Xie, Vicent Marti, and Natacha Porte. 2019. *Markdown: Render Markdown with the c Library Sundown*. <https://github.com/rstudio/markdown>.
