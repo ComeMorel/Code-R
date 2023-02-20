@@ -1,0 +1,82 @@
+---
+title: "Réunion 17/02/2023"
+author: "Group Arbovirus & Virome"
+date: "14/02/2023"
+output:
+  ioslides_presentation: default
+  slide_level: 2
+  colortheme: beaver
+  beamer_presentation: null
+  slidy_presentation: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Sommaire de la présentation :
+
+* [Papier Sénégal](#3)
+
+
+* [ARBOSUD](#4)
+
+
+* [Congrès - Formations](#5)
+
+
+* [Présentation Rmarkdown (données Sénégal)](#6)
+
+
+## Papier Sénégal
+
+- **ISME Journal** (soumis 08/02/2023) ![](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/ISME_J.jpg)
+  * Refus par l'éditeur (14/02/2023)
+  
+  
+  
+- **ISME Communications** (à soumettre) ![](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/ISME_Com.jpg)
+
+
+## ARBOSUD {.smaller}
+
+
+- Analyse bioinformatique en cours (étape de clusterisation)
+
+
+- Tri des *Anopheles hyrcanus* terminé :
+  * **2669 individus** :
+    * 2019 : **1157 indiv.** (8 sites, 5 sites pipiens/caspius, 5R/2P/1I)
+    * 2020 : **613 indiv.** (6 sites, 3 sites pipiens/caspius, 4R/2I)
+    * 2021 : **899 indiv.** (8 sites, 5 sites pipiens/caspius, 5R/1P/2I)
+    
+    
+- Préparation des librairies *Anopheles* (hyrcanus + gambiae)
+  * **45 librairies** hyrcanus
+  * **7 librairies** gambiae (359 indiv. : 2019 - 30 / 2020 - 267 / 2021 - 62)
+  
+  * Durant le mois avec Patricia
+  
+  
+- Visite des sites ARBOSUD : 
+  * Qui veut venir ? (A discuter des dispos avec Albane)
+  * Courant mois Février ou Mars
+  
+
+## Congrès - Formations
+
+
+- **Journées Francophones de Virologie** (17-18 avril 2023) 
+  * Présentation orale 12 min (Institut Pasteur Paris)
+
+
+- Formations statistiques en écologie (3-7 avril 2023)
+  * Analyse par réseaux
+
+
+## Présentation Rmarkdown (données Sénégal) {data-background=fond_ecran.jpg data-background-size=cover}
+
+[Rmarkdown presentation in HTML format](PROCEDURE-POUR-ANALYSER-LES-DONNEES-DU-VIROME-EN-SORTIE-DU-PIPELINE_RMARKDOWN.html)
+
+
+
