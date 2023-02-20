@@ -14,15 +14,6 @@ output:
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-
-colorize <- function(x, color) {
-  if (knitr::is_latex_output()) {
-    sprintf("\\textcolor{%s}{%s}", color, x)
-  } else if (knitr::is_html_output()) {
-    sprintf("<span style='color: %s;'>%s</span>", color,
-      x)
-  } else x
-}
 ```
 
 # 1. Créer un document Rmarkdown
@@ -109,7 +100,7 @@ Comme cette suite de caractères n’est pas très simple à saisir, vous pouvez
 
 ![Insertion code R](Images/Insertion code R.jpg)
 
-Quand votre curseur se trouve dans un bloc, vous pouvez saisir le code R que vous souhaitez, l’exécuter, utiliser l’autocomplétion, exactement comme si vous vous trouviez dans un script R. Vous pouvez également exécuter l’ensemble du code contenu dans un bloc à l’aide du raccourci clavier `Ctrl+Maj+Entrée` ou alors avec la petite `r colorize("flèche verte ", "green")` en haut à droite du code. De même vous pouvez utiliser le menu `Run` pour lancer un bloc de code (`Run Current Chunk`) ou tous les blocs de code précédents ou suivants (`Run All Chunks Above` ou `Run All Chunks Below`).
+Quand votre curseur se trouve dans un bloc, vous pouvez saisir le code R que vous souhaitez, l’exécuter, utiliser l’autocomplétion, exactement comme si vous vous trouviez dans un script R. Vous pouvez également exécuter l’ensemble du code contenu dans un bloc à l’aide du raccourci clavier `Ctrl+Maj+Entrée` ou alors avec la petite flèche verte en haut à droite du code. De même vous pouvez utiliser le menu `Run` pour lancer un bloc de code (`Run Current Chunk`) ou tous les blocs de code précédents ou suivants (`Run All Chunks Above` ou `Run All Chunks Below`).
 
 ![Lancer code R](Images/Lancer code R.jpg)
 
@@ -206,15 +197,9 @@ En général, on place toutes ces modifications globales dans un bloc spécial n
 
 ![Options générales](Images/Code Setup.jpg)
 
-Une option sympa aussi est celle qui permet de coloriser `r colorize("certains mots ", "red")` pour les faire ressortir. Pour cela il faut intégrer dans le **bloc setup** cette fonction :
+Une option sympa aussi est celle qui permet de coloriser certains mots pour les faire ressortir. Pour cela il faut intégrer dans le **bloc setup** cette fonction :
 
 ![Fonction de colorisation des mots du document](Images/Colorisation Setup.jpg)
-
-Puis, une fois cela fait, intégrer dans le texte cette fonction :
-
-```
-Une option sympa aussi est celle qui permet de coloriser `r colorize("certains mots ", "red")` pour les faire ressortir.
-```
 
 # 5. Tableaux R
 
