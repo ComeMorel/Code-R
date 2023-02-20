@@ -24,7 +24,7 @@ Un document R Markdown est un fichier texte enregistré avec l’extension `.Rmd
 
 Sous RStudio, on peut créer un nouveau document en allant dans le menu `File` puis en choisissant `New file` puis `R Markdown…`. La boîte de dialogue suivante s’affiche :
 
-![Nouveau document Rmarkdown](Nouveau fichier.jpg)
+![Nouveau document Rmarkdown](Images/Nouveau fichier.jpg)
 
 On peut indiquer le titre, l’auteur du document ainsi que le format de sortie par défaut (possibilité de modifier facilement ces éléments par la suite). De plus, on peut aussi choisir de créer une présentation sous forme de slides (*Presentation*) ou de créer un document à partir d’un modèle (*From Template*).
 
@@ -86,31 +86,31 @@ Dans RStudio, le menu `Help` puis `Markdown quick reference` donne un aperçu pl
 
 Pour intégrer des blocs de code simples à du texte voici la syntaxe :
 
-![Bloc de code simple](Integration bloc de code.jpg)
+![Bloc de code simple](Images/Integration bloc de code.jpg)
 
 De même, il est possible d'intégrer des bloc de code dans les lignes de texte :
 
-![Code de ligne](Inline code.jpg)
+![Code de ligne](Images/Inline code.jpg)
 
 ### 2.3.2. Blocs de code R
 
 En plus du texte libre et des blocs de code simples au format *Markdown*, un document R Markdown contient, comme son nom l’indique, du code R. Celui-ci est inclus dans des blocs (**chunks**) délimités par la syntaxe suivante :
 
-![Bloc de code R](Blocs de code R.jpg)
+![Bloc de code R](Images/Blocs de code R.jpg)
 
 Comme cette suite de caractères n’est pas très simple à saisir, vous pouvez utiliser le menu `Insert` de RStudio et choisir `R`, ou utiliser le raccourci clavier `Ctrl+Alt+i`
 
-![Insertion code R](Insertion code R.jpg)
+![Insertion code R](Images/Insertion code R.jpg)
 
 Quand votre curseur se trouve dans un bloc, vous pouvez saisir le code R que vous souhaitez, l’exécuter, utiliser l’autocomplétion, exactement comme si vous vous trouviez dans un script R. Vous pouvez également exécuter l’ensemble du code contenu dans un bloc à l’aide du raccourci clavier `Ctrl+Maj+Entrée` ou alors avec la petite `r colorize("flèche verte ", "green")` en haut à droite du code. De même vous pouvez utiliser le menu `Run` pour lancer un bloc de code (`Run Current Chunk`) ou tous les blocs de code précédents ou suivants (`Run All Chunks Above` ou `Run All Chunks Below`).
 
-![Lancer code R](Lancer code R.jpg)
+![Lancer code R](Images/Lancer code R.jpg)
 
 ## 2.4. Compiler un document (*Knit*)
 
 On peut à tout moment compiler (**Knit**) un document *R Markdown* pour obtenir et visualiser le document généré. Pour cela, il suffit de cliquer sur le bouton `Knit` et de choisir le format de sortie voulu :
 
-![Compiler un document](Knit.jpg)
+![Compiler un document](Images/Knit.jpg)
 
 
 Vous pouvez aussi utiliser le raccourci `Ctrl+Maj+K` pour compiler le document dans le dernier format utilisé.
@@ -128,7 +128,7 @@ tinytex::install_tinytex()
 
 La personnalisation du document généré se fait en modifiant des options dans le préambule du document. *RStudio* propose néanmoins une petite interface graphique permettant de changer ces options plus facilement. Pour cela, cliquez sur l’icône en forme d’engrenage à droite du bouton `Knit` et choisissez `Output Options…`
 
-![Personnaliser un document](Personnaliser document.jpg)
+![Personnaliser un document](Images/Personnaliser document.jpg)
 
 Lorsque vous changez des options, *RStudio* va modifier le préambule de votre document.  Il est possible de spécifier des options différentes selon les formats, par exemple :
 
@@ -197,11 +197,11 @@ On peut positionner une option globalement en utilisant la fonction `knitr::opts
 
 En général, on place toutes ces modifications globales dans un bloc spécial nommé **setup** et qui est le premier bloc du document, par exemple :
 
-![Options générales](Code Setup.jpg)
+![Options générales](Images/Code Setup.jpg)
 
 Une option sympa aussi est celle qui permet de coloriser `r colorize("certains mots ", "red")` pour les faire ressortir. Pour cela il faut intégrer dans le **bloc setup** cette fonction :
 
-![Fonction de colorisation des mots du document](Colorisation Setup.jpg)
+![Fonction de colorisation des mots du document](Images/Colorisation Setup.jpg)
 
 Puis, une fois cela fait, intégrer dans le texte cette fonction :
 
@@ -273,7 +273,7 @@ Certains modèles de slides sont inclus avec *R Markdown*, notamment :
 
 * **beamer** pour des présentations en PDF via LaTeX
 
-![Créer une présentation](Nouvelle présentation.jpg)
+![Créer une présentation](Images/Nouvelle présentation.jpg)
 
 ## 6.2. Templates 
 
@@ -291,7 +291,7 @@ Enfin, l’extension `rmdformat` propose plusieurs modèles HTML adaptés notamm
 
 Là encore, la plupart du temps, ces modèles de documents proposent un template de départ lorsqu’on crée un nouveau document dans *RStudio* (**From Template**) :
 
-![Créer un template](Nouveau template.jpg)
+![Créer un template](Images/Nouveau template.jpg)
 
 # 7. Ressources 
 
