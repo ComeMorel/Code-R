@@ -2,7 +2,14 @@
 title: "Introduction rapide à Rmarkdown"
 author: "Group Arbovirus & Virome"
 date: "16/02/2023"
-output: rmdformats::readthedown
+output: 
+  html_document:
+    toc: yes
+    toc_depth: 4
+    toc_float: true
+    number_sections: false
+    highlight: tango
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
