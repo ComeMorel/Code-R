@@ -1,26 +1,44 @@
 ---
 title: "PROCEDURE POUR ANALYSER LES DONNEES DU VIROME EN SORTIE DU PIPELINE"
-author: Group Arbovirus & Virome
-date: "17/02/2023"
+author: "Group Arbovirus & Virome"
+date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
-  html_document:
-    toc: yes
+  rmdformats::readthedown:
+    toc_float:
+     smooth_scroll: false
     toc_depth: 4
-    toc_float: true
-    number_sections: false
-    highlight: tango
+    code_folding: show
     df_print: paged
-  pdf_document:
-    toc: true
-    toc_depth: 4
-    number_sections: false
-    highlight: tango
-    df_print: kable
 ---
 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Working directory, include=FALSE}
+# Set the working directory
+current_directory <-  "~/Thèse CIRAD/Projet P1 SENEGAL - Sympathôtes"
+setwd(dir = current_directory)
+
+# Metadata files
+Table_data.file <- paste(current_directory, 'Redaction/Tableau_prelim/Table_data.xlsx', sep = "/")
+Stats_run.file <- paste(current_directory, 'Doc_projet/Projet_V2/stats_run_SENEGAL.csv', sep = "/")
+Metadata.file <- paste(current_directory, 'Supp_data (metadata, description, ...)/metadata_PTQ.xlsx', sep = "/")
+
+# Count table file
+Count_table.file <- paste(current_directory, 'Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/otu_clean_fil10.csv', sep = "/")
+
+# Taxonomy table file 
+Taxo_table.file <- paste(current_directory, 'Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/taxo_table_Cx_propre.xlsx', sep = "/")
+
+# Distance matrix file 
+Dist_table.file <- paste(current_directory, 'Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3.xlsx', sep = "/")
+Dist_matrix.file <- paste(current_directory, 'Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3_modif_for_protocole.xlsx', sep = "/")
+
+# Map file
+Map.file <- paste(current_directory, 'Supp_data (metadata, description, ...)/SupData_merge_1.xlsx', sep = "/")
+
 ```
 
 
@@ -52,6 +70,8 @@ library("ggplot2")
 library("readxl")
 # Autre package pour manipuler les données
 library("gdata")
+# Pour les tableaux interactifs
+library("DT")
 # Test statistiques donc test de wilcoxon (fonction "wsrTest")
 library("asht")
 # Heatmaps "superheat" 
@@ -97,7 +117,7 @@ Les reads **undetermined** sont utilisés pour l’étape de co-assemblage puis 
 * `clustering` = permet de résoudre les multiassignations : groupage des `TaxID` par les 5 meilleurs besthit (on garde 5 sorties pour chaque contig)
 
 ```{r, fig.width=10, fig.height=6}
-Table_data <- read_excel("Projet P1 SENEGAL - Sympathôtes/Redaction/Tableau_prelim/Table_data.xlsx") 
+Table_data <- read_excel(Table_data.file) 
 Table_data <- as.data.frame(Table_data)
 rownames(Table_data) <- Table_data$Object
 Table_data <- Table_data[,-c(1:3)]
@@ -163,7 +183,7 @@ Design expérimental, nombre de librairies + les contrôles et undetermined pour
 Analyse du run selon le tableau stats : exemple ci-dessous (*data Sénégal*)
 
 ```{r, message=FALSE}
-read_csv("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/stats_run_SENEGAL.csv")
+datatable(read_csv(Stats_run.file), editable = 'cell', filter = 'top')
 ```
 
 ## 2-2 : Vérification de l’homogénéité des données (voir s’il y a des biais de manip, si beaucoup de plaques d’extraction)
@@ -179,7 +199,7 @@ read_csv("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/stats_run_SENEGA
 *	Analyse de la distribution des reads : Est-ce que les données suivent une loi normale ? `Shapiro test`
 
 ```{r, message=FALSE}
-count_otu_Cx <- read_csv("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/otu_clean_fil10.csv")
+count_otu_Cx <- read_csv(Count_table.file)
 apply(count_otu_Cx[,-1], 2, shapiro.test) #p-value > 0.05 indique que la distribution des données n’est pas significativement différente de la distribution normale. En d’autres termes, nous pouvons supposer la normalité des données (ce qui n'est pas le cas ici).
 ```
 La distribution normale des données est basée sur la moyenne et la variance.
@@ -191,7 +211,7 @@ Test Stat de `Kruskal-wallis` pour les données non paramétriques (avec n > 2).
 ## 2-3 : Analyse de la Taxonomie
 
 **La taxonomie virale est basée selon la classification de l’ICTV**
-![Figure : Classification taxonomique ICTV](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/Classification_ICTV.png)
+![Figure : Classification taxonomique ICTV](Images/Classification_ICTV.png)
 
 L’assignation taxonomique des contigs se fait par BLAST sur les bases de données de 2021 mais il faut faire une correction « manuelle » en corrigeant le `NA` des colonnes `Phylum`, `Order`, `Nucleic_acid`, `Host` selon [Shi et al.](https://www.nature.com/articles/nature20167), [Koonin et al.](https://www.sciencedirect.com/science/article/pii/S0042682215000859) et l’[ICTV](https://ictv.global/taxonomy).
 
@@ -201,7 +221,7 @@ Le rang `Cluster` est intermédiaire entre `Order` et `Family`.
 
 *	Harmoniser la dénomination de la colonne `Host`. On retrouve souvent `Culicidae`/`Diptera`/`Insecta`/`Insecta_other`/`other diptera`. En fonction du nom de l’espèce on peut modifier et mettre `Culicidae` ou `Arthropod_other` ou `insecta_other` (`NA` restant = Arthropodes dans le jeu de données Sénégal : exemple de manip à faire)
 ```{r, message=FALSE}
-taxo_table_Cx <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Projet_V3_fichiers_filtrer/culex/taxo_table_Cx_propre.xlsx")
+taxo_table_Cx <- read_excel(Taxo_table.file)
 taxo_table_Cx <- taxo_table_Cx[,-1]
 taxo_table_Cx[is.na(taxo_table_Cx$hosts_taxon), "hosts_taxon"] <- "Arthropoda_other"
 ```
@@ -325,7 +345,7 @@ table(count_otu_taxo_Cx$phylum)
 count_cluster_Cx <- aggregate( . ~ cluster, data = count_otu_taxo_Cx[,colnames(count_otu_taxo_Cx) %in% c("PF4","PF5","TF4","TF5","PD4","PD5","TD4","TD5","PK4","PK5","TK4","TK5", "cluster")], function(x) x=sum(x))
 rownames(count_cluster_Cx) <- count_cluster_Cx$cluster
 count_cluster_Cx$sum_reads <- apply(count_cluster_Cx[,!colnames(count_cluster_Cx) %in% ("cluster")], 1, sum)
-count_cluster_Cx
+datatable(count_cluster_Cx, editable = 'cell', filter = 'top')
 ```
 *Pour le reste on est sur le même script/les mêmes manips*
 
@@ -364,7 +384,7 @@ otu_mat_Cx <- as.tibble(count_otu_taxo_Cx[,1:13]) %>%
 tax_mat_Cx <- taxo_table_Cx[,c(1,4:12)] %>% 
   tibble::column_to_rownames("tax_id")
 
-samples_df_Cx <- read_excel("D:/Mes Donnees/Thèse CIRAD/Projet P1 SENEGAL - Sympathôtes/Supp_data (metadata, description, ...)/metadata_PTQ.xlsx", sheet = "Feuil1")
+samples_df_Cx <- read_excel(Metadata.file, sheet = "Feuil1")
 
 # Fusionner les deux tables 
 samples_df_Cx <- samples_df_Cx[17:28,] %>% 
@@ -554,7 +574,7 @@ PieDonut(count_otu_taxo_Cx, aes(pies=phylum, donuts=order), r0=0, showPieName=FA
 
 ### 2.4.3 : Exploration de l’ Alpha diversité avec des indices statistiques
 
-![Figure : Représentation schématique de la diversité alpha et beta](Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Photos_results/Alpha_Beta_diversity.png)
+![Figure : Représentation schématique de la diversité alpha et beta](Images/Alpha_Beta_diversity.png)
 
 **Diversité Alpha (intra communauté)**
 
@@ -792,7 +812,7 @@ write.csv2(Bray_tab3, file = "BrayCurtis_OTU_2.csv")
 write.csv2(Sor_tab3, file = "Sorensen_OTU_2.csv")
 
 ## the two files have been merged in dist_matrixes_Jac_Bray.xlsx (reports folder)
-dist_matrixes_Jac_Bray_OTU <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3.xlsx") # in reports folder
+dist_matrixes_Jac_Bray_OTU <- read_excel(Dist_table.file) # in reports folder
 
 # Fig. with all point/all librarie comparison.
 fig_betaindexes <- dist_matrixes_Jac_Bray_OTU %>%
@@ -808,7 +828,7 @@ fig_betaindexes <- fig_betaindexes +
         legend.title = element_blank())
 
 # statistical analysis of beta indexes: compare BC and Jaccard/Sorensen depending on species
-dist_Jac_Bray2 <- read_excel("Projet P1 SENEGAL - Sympathôtes/Doc_projet/Projet_V2/Jaccard_vs_Bray/dist_matrixes_Jac_Bray_OTU_v3_modif_for_protocole.xlsx") # in reports folder
+dist_Jac_Bray2 <- read_excel(Dist_matrix.file) # in reports folder
 
 # change the dataframe structure 
 dist_Jac_Bray3 <- dist_Jac_Bray2 %>%
@@ -1112,7 +1132,7 @@ map_World
 
 Charger un fichier de métadonnées comprenant la position géographique des sites (Latitude et Longitude) :
 ```{r}
-SupData_merge <- read_excel("Projet P1 SENEGAL - Sympathôtes/Supp_data (metadata, description, ...)/SupData_merge_1.xlsx")
+SupData_merge <- read_excel(Map.file)
 SupData_merge
 ```
 

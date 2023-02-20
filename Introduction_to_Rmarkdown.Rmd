@@ -1,15 +1,13 @@
 ---
 title: "Introduction rapide à Rmarkdown"
 author: "Group Arbovirus & Virome"
-date: "16/02/2023"
-output: 
-  html_document:
-    toc: yes
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  rmdformats::readthedown:
+    toc_float:
+     smooth_scroll: false
     toc_depth: 4
-    toc_float: true
-    number_sections: false
-    highlight: tango
-    df_print: paged
+    code_folding: hide
 ---
 
 ```{r setup, include=FALSE}
@@ -200,6 +198,10 @@ En général, on place toutes ces modifications globales dans un bloc spécial n
 Une option sympa aussi est celle qui permet de coloriser certains mots pour les faire ressortir. Pour cela il faut intégrer dans le **bloc setup** cette fonction :
 
 ![Fonction de colorisation des mots du document](Images/Colorisation Setup.jpg)
+
+Puis, une fois cela fait, intégrer dans le texte cette fonction :
+
+![Fonction de colorisation des mots du document](Images/Colorisation ligne.jpg)
 
 # 5. Tableaux R
 
