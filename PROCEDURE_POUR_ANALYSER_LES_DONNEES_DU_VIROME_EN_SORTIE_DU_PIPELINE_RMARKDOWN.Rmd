@@ -98,6 +98,8 @@ library("reshape2")
 library("patchwork")
 # Visualisation graphiques en 3D
 library("rgl")
+# Visualisation des espèces indicatrices
+library("indicspecies")
 ```
 
 # 1- Récapitulatif des filtres appliqués sur les reads bruts lors de l’analyse bio_info
@@ -924,8 +926,77 @@ dist_Jac_Bray3 %>%
   filter(index %in% "sorensen") %>%
   summarise(index = median(estimate, na.rm = TRUE)) # mean = 0.4864595
 ```
+### 2.6.2 : Recherche des parties indicatrices/marqueurs dans nos données
 
-### 2.6.2 : Betadisperser pour tester l'homogénéité des dispersions multivariées
+Indicator species are:
+
+**“A species whose status provides information on the overall condition of the ecosystem and of other species in that ecosystem. They reflect the quality and changes in environmental conditions as well as aspects of community composition.”** - *United Nations Environment Programme (1996)*
+
+Tutorial [here](https://jkzorz.github.io/2019/07/02/Indicator-species-analysis.html)
+
+```{r}
+abund = abund_OTU_transvers_Cx[,1:99]
+host = abund_OTU_transvers_Cx$Host
+
+inv = multipatt(abund, host, func = "r.g", control = how(nperm=9999))
+
+summary(inv)
+```
+
+Use a **boxplot** to show the differences in distribution of these identified, statistically significant species between groupings.
+
+```{r, fig.width=12, fig.height=10}
+abund_indic = melt(abund_OTU_transvers_Cx[,c(1:99,104)], id = "Host")
+
+ggplot(abund_indic, aes(x = variable, y = value, fill = Host)) + 
+     geom_boxplot(colour = "black", position = position_dodge(0.5)) +
+     theme(legend.title = element_text(size = 12, face = "bold"), 
+     legend.text = element_text(size = 10, face = "bold"), legend.position = "right", 
+     axis.text.x = element_text(face = "bold",colour = "black", size = 12, angle=90), 
+     axis.text.y = element_text(face = "bold", size = 12, colour = "black"), 
+     axis.title.y = element_text(face = "bold", size = 14, colour = "black"), 
+     panel.background = element_blank(), 
+     panel.border = element_rect(fill = NA, colour = "black"), 
+     legend.key=element_blank()) + 
+     labs(x= "", y = "Relative Abundance (%)", fill = "Time") + 
+     scale_fill_manual(values = c("steelblue2", "steelblue4"))
+
+abund_indic_spec = data.frame(Host =  abund_OTU_transvers_Cx$Host, 
+             `Culex vishnui subgroup totivirus` =  abund_OTU_transvers_Cx$`Culex vishnui subgroup totivirus`, 
+             `Culex tritaeniorhynchus Negev-like virus` = abund_OTU_transvers_Cx$`Culex tritaeniorhynchus Negev-like virus`,
+             `Cordoba virus` = abund_OTU_transvers_Cx$`Cordoba virus`, 
+             `Broome reo-like virus 1` = abund_OTU_transvers_Cx$`Broome reo-like virus 1`,
+             `Hubei diptera virus 20` = abund_OTU_transvers_Cx$`Hubei diptera virus 20`,
+             `Beihai narna-like virus 22` = abund_OTU_transvers_Cx$`Beihai narna-like virus 22`, 
+             `Culex associated luteo like virus` = abund_OTU_transvers_Cx$`Culex associated luteo like virus`, 
+             `Fitzroy Crossing toti-like virus 2` = abund_OTU_transvers_Cx$`Fitzroy Crossing toti-like virus 2`, 
+             `Bat sobemovirus` = abund_OTU_transvers_Cx$`Bat sobemovirus`,
+             `Broome luteo-like virus 1` = abund_OTU_transvers_Cx$`Broome luteo-like virus 1`, 
+             `Xanthi chryso-like virus` = abund_OTU_transvers_Cx$`Xanthi chryso-like virus`, 
+             `Tritaeniorhynchus merhavirus` = abund_OTU_transvers_Cx$`Tritaeniorhynchus merhavirus`,
+             `Soufli chryso-like virus` = abund_OTU_transvers_Cx$`Soufli chryso-like virus`, 
+             `Hubei virga-like virus 2` = abund_OTU_transvers_Cx$`Hubei virga-like virus 2`,
+             `Alexandroupolis virga-like virus` = abund_OTU_transvers_Cx$`Alexandroupolis virga-like virus`,
+             `Culex mononega-like virus 2` = abund_OTU_transvers_Cx$`Culex mononega-like virus 2`) 
+
+abund_indic_spec_m = melt(abund_indic_spec, id = "Host")
+
+ggplot(abund_indic_spec_m, aes(x = variable, y = value, fill = Host)) + 
+     geom_boxplot(colour = "black", position = position_dodge(0.5)) +
+     geom_vline(xintercept = rep(1.5:15.5, each = 1), colour = "grey85", size = 1.2) +
+     theme(legend.title = element_text(size = 12, face = "bold"), 
+     legend.text = element_text(size = 10, face = "bold"), legend.position = "right", 
+     axis.text.x = element_text(face = "bold",colour = "black", size = 12, angle=90), 
+     axis.text.y = element_text(face = "bold", size = 12, colour = "black"), 
+     axis.title.y = element_text(face = "bold", size = 14, colour = "black"), 
+     panel.background = element_blank(), 
+     panel.border = element_rect(fill = NA, colour = "black"), 
+     legend.key=element_blank()) + 
+     labs(x= "", y = "Relative Abundance (%)", fill = "Time") + 
+     scale_fill_manual(values = c("steelblue2", "steelblue4"))
+```
+
+### 2.6.3 : Betadisperser pour tester l'homogénéité des dispersions multivariées
 
 **Betadisper tests** whether two or more groups (for example, grazed and ungrazed sites) are homogeneously dispersed in relation to their species in studied samples. This test can be done to see if one group has more compositional variance than another. Moreover, homogeneity of dispersion among groups is very advisable to have if you want to test if two or more groups have different compositions, which is tested by `adonis`.
 
@@ -1088,7 +1159,7 @@ grid.arrange(panel.a,panel.b,panel.c,nrow=1)
 
 ```
 
-### 2.6.3 : Créer une cartographie des points d'échantillonnages des données
+### 2.6.4 : Créer une cartographie des points d'échantillonnages des données
 
 Plus d'informations [ici](https://ahurford.github.io/quant-guide-all-courses/making-maps.html#introduction-4) :
 
